@@ -17,9 +17,9 @@
 
 */
 
-#include <Wire.h>
+//#include <Wire.h>
 //#include <TimeLib.h>
-#include <DS1307RTC.h>
+//#include <DS1307RTC.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <EEPROM.h>
@@ -154,7 +154,7 @@ void setup() {
   server.begin();
   Serial.print("server is at ");
   Serial.println(Ethernet.localIP());
-
+#if 0
   Wire.begin();
 
   tmElements_t tm;
@@ -181,7 +181,7 @@ void setup() {
   //if (! RTC.isrunning()) {
   //  Serial.println("RTC is NOT running!");
   //}
-
+#endif
 
   // FIX Read values from EEPROM into Counters;
   ReadEeprom(true);
@@ -219,12 +219,12 @@ void loop() {
           client.print(state);
           client.print(", SetTime is: ");
           client.print(((SetTime==true) ? "1" : "0"));
-
+#if 0
           tmElements_t tm;
           RTC.read(tm);
           client.print(", Year is: ");
           client.print(tm.Year);
-
+#endif
           client.println("<br />");
 
           // output contents of current counters
