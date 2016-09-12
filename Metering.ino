@@ -17,9 +17,9 @@
 
 */
 
-//#include <Wire.h>
-//#include <TimeLib.h>
-//#include <DS1307RTC.h>
+#include <Wire.h>
+#include <Time.h>
+#include <DS1307RTC.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <EEPROM.h>
@@ -34,7 +34,7 @@ unsigned long eepromCountersCurrent[NUM_COUNTERS];
 unsigned long eepromCountersLastSaved[NUM_COUNTERS];
 byte oldPulseStates[NUM_COUNTERS];
 const char *CounterNames[NUM_COUNTERS] = {
-  "Varmepumpe 1b Gang",
+  "Varmepumpe 1d Gang",
   "Varmekabel Gang",
   "Sentral Stovsuger",
   "Torketrommel",
@@ -154,12 +154,12 @@ void setup() {
   server.begin();
   Serial.print("server is at ");
   Serial.println(Ethernet.localIP());
-#if 0
+
   Wire.begin();
+#if 0
 
   tmElements_t tm;
-  DS1307RTC myRTC;
-  myRTC.read(tm);
+  RTC.read(tm);
   if (tm.Year < 16) {
     SetTime = true;
 #if 0
@@ -186,7 +186,6 @@ void setup() {
   // FIX Read values from EEPROM into Counters;
   ReadEeprom(true);
 }
-
 
 void loop() {
   // listen for incoming clients
@@ -218,12 +217,27 @@ void loop() {
           client.print(", State is: ");
           client.print(state);
           client.print(", SetTime is: ");
-          client.print(((SetTime==true) ? "1" : "0"));
-#if 0
+          client.print(((SetTime == true) ? "1" : "0"));
+          
+          client.print(", Code compiled:");
+          client.print(__DATE__);
+          client.print(" - ");
+          client.print(__TIME__);
+#if 1
           tmElements_t tm;
           RTC.read(tm);
-          client.print(", Year is: ");
-          client.print(tm.Year);
+          client.print(", RTC Date&Time: ");
+          client.print(tm.Year+1970);
+          client.print("/");
+          client.print(tm.Month);
+          client.print("/");
+          client.print(tm.Day);
+          client.print("-");
+          client.print(tm.Hour);
+          client.print(":");
+          client.print(tm.Minute);
+          client.print(":");
+          client.print(tm.Second);
 #endif
           client.println("<br />");
 
