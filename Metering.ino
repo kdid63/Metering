@@ -1,40 +1,39 @@
 /*
-  Web Server
+  This is a power metering Web Server
 
-  A simple web server that shows the value of the analog input pins.
-  using an Arduino Wiznet Ethernet shield.
+  This Web server will:
+  - Support up to 24 power metering pulse counters.
+  - Read the existing kWh values from eeprom memory.
+  - Monitor a number of IO-pins on the Android Mega board for metering pulses.
+  - Update interal kWh counters and store any changed counters back to the eeprom memory.
+  - Support a web server that will show the current kWh values for each Android Mega pins monitored using an Arduino Wiznet Ethernet shield.
 
   Circuit:
    Ethernet shield attached to pins 10, 11, 12, 13
-   Analog inputs attached to pins A0 through A5 (optional)
+   Digital inputs attached to pins 26 through 49 (optional)
+   DS1307RTC board attached to pin 20 and 21
+   A 1K resistor attached between 2 and 3 to provide a steady interrupt call 400 times a second, that will do the actual counting of metering pulses.
 
-  created 18 Dec 2009
-  by David A. Mellis
-  modified 9 Apr 2012
-  by Tom Igoe
-  modified 02 Sept 2015
-  by Arturo Guadalupi
+  Code created from 1 Aug 2016
+  by Kjell Didriksen
 
 */
 
-#include <Wire.h>
-#include <Time.h>
-#include <DS1307RTC.h>
-#include <SPI.h>
+//#include <SPI.h>
 #include <Ethernet.h>
 #include <EEPROM.h>
-
+#include <Wire.h>
+#include <TimeLib.h>
+#include <DS1307RTC.h>
 
 #define NUM_COUNTERS  24
-
-//int rtc[7];
 
 byte numCounters = NUM_COUNTERS;
 unsigned long eepromCountersCurrent[NUM_COUNTERS];
 unsigned long eepromCountersLastSaved[NUM_COUNTERS];
 byte oldPulseStates[NUM_COUNTERS];
 const char *CounterNames[NUM_COUNTERS] = {
-  "Varmepumpe 1d Gang",
+  "Varmepumpe1 Gang",
   "Varmekabel Gang",
   "Sentral Stovsuger",
   "Torketrommel",
@@ -42,7 +41,7 @@ const char *CounterNames[NUM_COUNTERS] = {
   "Oppvaskmaskin",
   "Vannpumpe",
   "Microbolgeovn",
-  "Varmepumpe 2 Stue",
+  "Varmepumpe2 Stue",
   "Varmekabel Bad 1.etg.",
   "Varmekabel Stue",
   "Stekeovn",
@@ -63,7 +62,7 @@ long CounterPorts[NUM_COUNTERS] = {
   26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48,
   27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49
 };
-long numPulsesPerCount[NUM_COUNTERS] = {500, 500, 500, 500, 500, 500, 500, 500};
+long numPulsesPerCount[NUM_COUNTERS] = {500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500};
 long localCounters[NUM_COUNTERS];
 long meterCounters[NUM_COUNTERS];
 
@@ -134,7 +133,7 @@ void setup() {
   // Prepare interrupts to arrive.
   pinMode(ledPin, OUTPUT);
   pinMode(interruptPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(interruptPin), blink, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), myInteruptCall, CHANGE);
 
   pinMode(timingPin, OUTPUT);
   analogWrite(timingPin, timingValue);
@@ -155,8 +154,8 @@ void setup() {
   Serial.print("server is at ");
   Serial.println(Ethernet.localIP());
 
-  Wire.begin();
-#if 0
+  //Wire.begin();
+#if 1
 
   tmElements_t tm;
   RTC.read(tm);
@@ -175,6 +174,18 @@ void setup() {
 #endif
     Serial.println("RTC was initialized!!!!!!!!!!!!!!!!!!!");
   }
+  Serial.print("DateTime: ");
+  Serial.print(tm.Year + 1970);
+  Serial.print("-");
+  Serial.print(tm.Month);
+  Serial.print("-");
+  Serial.print(tm.Day);
+  Serial.print(" - ");
+  Serial.print(tm.Hour);
+  Serial.print(":");
+  Serial.print(tm.Minute);
+  Serial.print(":");
+  Serial.println(tm.Second);
 
   //RTC.adjust(DateTime(__DATE__, __TIME__));
 
@@ -218,26 +229,33 @@ void loop() {
           client.print(state);
           client.print(", SetTime is: ");
           client.print(((SetTime == true) ? "1" : "0"));
-          
+
           client.print(", Code compiled:");
           client.print(__DATE__);
           client.print(" - ");
           client.print(__TIME__);
-#if 1
+          client.println("<br />");
+
           tmElements_t tm;
-          RTC.read(tm);
-          client.print(", RTC Date&Time: ");
-          client.print(tm.Year+1970);
-          client.print("/");
-          client.print(tm.Month);
-          client.print("/");
-          client.print(tm.Day);
-          client.print("-");
-          client.print(tm.Hour);
-          client.print(":");
-          client.print(tm.Minute);
-          client.print(":");
-          client.print(tm.Second);
+          Serial.println("here 1");
+#if 0
+          if (RTC.read(tm)) {
+            Serial.println("here 2");
+#if 0
+            client.print(", DateTime: ");
+            client.print(tm.Year + 1970);
+            client.print("-");
+            client.print(tm.Month);
+            client.print("-");
+            client.print(tm.Day);
+            client.print(" - ");
+            client.print(tm.Hour);
+            client.print(":");
+            client.print(tm.Minute);
+            client.print(":");
+            client.print(tm.Second);
+#endif
+          }
 #endif
           client.println("<br />");
 
@@ -324,7 +342,7 @@ void loop() {
   digitalWrite(ledPin, state);
 }
 
-void blink() {
+void myInteruptCall() {
   state = !state;
   cnt++;
 
