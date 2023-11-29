@@ -6,13 +6,15 @@
   - Read the existing kWh values from eeprom memory.
   - Monitor a number of IO-pins on the Android Mega board for metering pulses.
   - Update interal kWh counters and store any changed counters back to the eeprom memory.
-  - Support a web server that will show the current kWh values for each Android Mega pins monitored using an Arduino Wiznet Ethernet shield.
+  - Support a web server that will show the current kWh values 
+    for each Android Mega pins monitored using an Arduino Wiznet Ethernet shield.
 
   Circuit:
    Ethernet shield attached to pins 10, 11, 12, 13
    Digital inputs attached to pins 26 through 49 (optional)
    DS1307RTC board attached to pin 20 and 21
-   A 1K resistor attached between 2 and 3 to provide a steady interrupt call 400 times a second, that will do the actual counting of metering pulses.
+   A 1K resistor attached between 2 and 3 to provide a steady interrupt call 400 times a second, 
+   that will do the actual counting of metering pulses.
 
   Code created from 1 Aug 2016
   by Kjell Didriksen
@@ -26,9 +28,13 @@
 #include <TimeLib.h>
 #include <DS1307RTC.h>
 
+#define INTERRUPT_ACTIVE() 0
+#define BLINK_DIVIDER 2000
 #define NUM_COUNTERS  24
+#define USED_COUNTERS  2
 
-byte numCounters = NUM_COUNTERS;
+
+byte numCounters = USED_COUNTERS;
 unsigned long eepromCountersCurrent[NUM_COUNTERS];
 unsigned long eepromCountersLastSaved[NUM_COUNTERS];
 byte oldPulseStates[NUM_COUNTERS];
@@ -58,14 +64,20 @@ const char *CounterNames[NUM_COUNTERS] = {
   "",
   "",
 };
-long CounterPorts[NUM_COUNTERS] = {
+long CounterPorts[NUM_COUNTERS] = 
+{
   26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48,
   27, 29, 31, 33, 35, 37, 39, 41, 43, 45, 47, 49
 };
-long numPulsesPerCount[NUM_COUNTERS] = {500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500};
+long numPulsesPerCount[NUM_COUNTERS] = 
+{
+  500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500,
+  500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500
+};
 long localCounters[NUM_COUNTERS];
 long meterCounters[NUM_COUNTERS];
 
+unsigned long blink_cnt;
 unsigned long cnt;
 bool SetTime;
 
@@ -73,17 +85,20 @@ bool SetTime;
 int address = 0;
 
 const byte ledPin = 13;
-const byte interruptPin = 2;
-const byte timingPin = 3;
+#if INTERRUPT_ACTIVE()
+const byte interruptPin = 8;
+const byte timingPin = 9;
 const byte timingValue = 127;
+#endif //INTERRUPT_ACTIVE()
 volatile byte state = LOW;
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
-byte mac[] = {
+byte mac[] = 
+{
   0x11, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
-IPAddress ip(192, 168, 1, 6);
+IPAddress ip(10, 0, 0, 10);
 
 // Initialize the Ethernet server library
 // with the IP address and port you want to use
@@ -92,10 +107,12 @@ EthernetServer server(80);
 
 void ReadEeprom(bool setvars) {
   // Read counters from eeprom
-  for (int eeprom_address = 0; eeprom_address < numCounters; eeprom_address++) {
+  for (int eeprom_address = 0; eeprom_address < numCounters; eeprom_address++) 
+  {
     // Read an unsigned long from the current address of the EEPROM
     unsigned long value = 0;
-    for (int n = 3; n >= 0; n--) {
+    for (int n = 3; n >= 0; n--) 
+    {
       unsigned long v = EEPROM.read(address + (eeprom_address * 4) + n);
       value = (value * 256) + v;
     }
@@ -107,17 +124,20 @@ void ReadEeprom(bool setvars) {
   }
 }
 
-void WriteEeprom(bool doclr) {
+void WriteEeprom(bool doclr) 
+{
   // Write counters to eeprom
-  for (int eeprom_address = 0; eeprom_address < numCounters; eeprom_address++) {
+  for (int eeprom_address = 0; eeprom_address < numCounters; eeprom_address++) 
+  {
     // Write a unsigned long to the current address of the EEPROM
-    unsigned long value = eepromCountersCurrent[eeprom_address] ;
+    unsigned long value = eepromCountersCurrent[eeprom_address];
     if ( doclr )
     {
       value = 0;
     }
     eepromCountersLastSaved[eeprom_address] = value;
-    for (int n = 3; n >= 0; n--) {
+    for (int n = 3; n >= 0; n--) 
+    {
       unsigned long v = value % 0x100;
       EEPROM.write(address + (eeprom_address * 4) + 3 - n, v);
       value = value / 256;
@@ -126,25 +146,33 @@ void WriteEeprom(bool doclr) {
 }
 
 
-void setup() {
+void setup() 
+{
+  // initialize digital pin 13 as an output.
+  //pinMode(13, OUTPUT);
+  blink_cnt = 0;
   cnt = 0;
   SetTime = false;
 
   // Prepare interrupts to arrive.
-  pinMode(ledPin, OUTPUT);
+  //pinMode(ledPin, OUTPUT);
+#if INTERRUPT_ACTIVE()
   pinMode(interruptPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interruptPin), myInteruptCall, CHANGE);
 
   pinMode(timingPin, OUTPUT);
   analogWrite(timingPin, timingValue);
+#endif //INTERRUPT_ACTIVE()
 
-  for (int i = 0; i < numCounters; i++) {
+  for (int i = 0; i < numCounters; i++) 
+  {
     pinMode(CounterPorts[i], INPUT);
   }
 
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
-  while (!Serial) {
+  while (!Serial) 
+  {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
@@ -158,8 +186,9 @@ void setup() {
 #if 1
 
   tmElements_t tm;
-  RTC.read(tm);
-  if (tm.Year < 16) {
+  bool res = RTC.read(tm);
+  if (tm.Year < 16) 
+  {
     SetTime = true;
 #if 0
     RTC.stop();
@@ -189,35 +218,39 @@ void setup() {
 
   //RTC.adjust(DateTime(__DATE__, __TIME__));
 
-  //if (! RTC.isrunning()) {
-  //  Serial.println("RTC is NOT running!");
-  //}
+  //Serial.print("RTC.isRunning() = ");
+  //Serial.println(RTC.isRunning());
 #endif
 
   // FIX Read values from EEPROM into Counters;
   ReadEeprom(true);
 }
 
-void loop() {
+void loop() 
+{
   // listen for incoming clients
   EthernetClient client = server.available();
-  if (client) {
-    Serial.println("new client");
+  if (client) 
+  {
+    Serial.println("##### Got a client");
     // an http request ends with a blank line
     boolean currentLineIsBlank = true;
-    while (client.connected()) {
-      if (client.available()) {
+    while (client.connected()) 
+    {
+      if (client.available()) 
+      {
         char c = client.read();
         Serial.write(c);
         // if you've gotten to the end of the line (received a newline
         // character) and the line is blank, the http request has ended,
         // so you can send a reply
-        if (c == '\n' && currentLineIsBlank) {
+        if (c == '\n' && currentLineIsBlank) 
+        {
           // send a standard http response header
           client.println("HTTP/1.1 200 OK");
           client.println("Content-Type: text/html");
           client.println("Connection: close");  // the connection will be closed after completion of the response
-          client.println("Refresh: 10");  // refresh the page automatically every 5 sec
+          client.println("Refresh: 15");  // refresh the page automatically every 5 sec
           client.println();
           client.println("<!DOCTYPE HTML>");
           client.println("<html>");
@@ -239,7 +272,8 @@ void loop() {
           tmElements_t tm;
           Serial.println("here 1");
 #if 0
-          if (RTC.read(tm)) {
+          if (RTC.read(tm)) 
+          {
             Serial.println("here 2");
 #if 0
             client.print(", DateTime: ");
@@ -260,7 +294,8 @@ void loop() {
           client.println("<br />");
 
           // output contents of current counters
-          for (int eeprom_address = 0; eeprom_address < numCounters; eeprom_address++) {
+          for (int eeprom_address = 0; eeprom_address < numCounters; eeprom_address++) 
+          {
             // Output the initial eeprom values
             client.print("Counter ");
             if ( eeprom_address < 10 )
@@ -303,7 +338,8 @@ void loop() {
           }
 #if 0
           // output the value of each analog input pin
-          for (int analogChannel = 0; analogChannel < numCounters; analogChannel++) {
+          for (int analogChannel = 0; analogChannel < numCounters; analogChannel++) 
+          {
             int sensorReading = analogRead(analogChannel);
             client.print("analog input ");
             client.print(analogChannel);
@@ -317,42 +353,52 @@ void loop() {
           client.println("</html>");
           break;
         }
-        if (c == '\n') {
+        if (c == '\n') 
+        {
           // you're starting a new line
           currentLineIsBlank = true;
-        } else if (c != '\r') {
+        } else if (c != '\r') 
+        {
           // you've gotten a character on the current line
           currentLineIsBlank = false;
         }
       }
     }
     // give the web browser time to receive the data
-    delay(1);
+    delay(10);
     // close the connection:
     client.stop();
-    Serial.println("client disconnected");
+    Serial.println("!!!!! Client disconnected");
   }
   else
   {
-    //Serial.print("No client ");
+    //Serial.print("***** No client to process at this time ");
     //Serial.println(cnt);
-    //cnt++;
-    //delay(500);
+    cnt++;
+    delay(100);
   }
-  digitalWrite(ledPin, state);
 }
 
-void myInteruptCall() {
-  state = !state;
+void myInteruptCall() 
+{
+  if (blink_cnt++ > BLINK_DIVIDER)
+  {
+    state = !state;
+    blink_cnt = 0;  
+    //digitalWrite(ledPin, state);
+  }
   cnt++;
 
   // FIX Read values from board inputs and compare them to oldPulseStates
-  // If the state went LOW, then increase the correct counter and update the oldPulseStes value.
+  // If the state went LOW, then increase the correct counter and update 
+  // the oldPulseStes value.
 
-  // FIX When the counter have counted the number of units it is supposed to, increase counter and store it in the EEPROM.
+  // FIX When the counter have counted the number of units it is supposed to, 
+  // increase counter and store it in the EEPROM.
   //eepromCountersCurrent[0] = eepromCountersCurrent[0] + 1;
 
-  for (int i = 0; i < numCounters; i++) {
+  for (int i = 0; i < numCounters; i++) 
+  {
     int val = digitalRead(CounterPorts[i]);
     if ( val )
     {
